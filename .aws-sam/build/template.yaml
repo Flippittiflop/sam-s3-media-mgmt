@@ -1,6 +1,5 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-
 Parameters:
   BucketName:
     Type: String
@@ -10,9 +9,7 @@ Parameters:
     Type: String
     Description: Email for the initial admin user
     Default: admin@example.com
-
 Resources:
-  # Cognito Resources for Admin Authentication
   AdminUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -20,7 +17,7 @@ Resources:
       AdminCreateUserConfig:
         AllowAdminCreateUserOnly: true
       AutoVerifiedAttributes:
-        - email
+      - email
       Policies:
         PasswordPolicy:
           MinimumLength: 8
@@ -28,19 +25,17 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
-
   AdminUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
-      UserPoolId: !Ref AdminUserPool
+      UserPoolId:
+        Ref: AdminUserPool
       ClientName: MediaManagementAdminClient
       GenerateSecret: false
       ExplicitAuthFlows:
-        - ALLOW_USER_PASSWORD_AUTH
-        - ALLOW_REFRESH_TOKEN_AUTH
+      - ALLOW_USER_PASSWORD_AUTH
+      - ALLOW_REFRESH_TOKEN_AUTH
       PreventUserExistenceErrors: ENABLED
-
-  # API Gateway Resources
   ApiGatewayApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -49,17 +44,18 @@ Resources:
         DefaultAuthorizer: CognitoAuthorizer
         Authorizers:
           CognitoAuthorizer:
-            UserPoolArn: !GetAtt AdminUserPool.Arn
+            UserPoolArn:
+              Fn::GetAtt:
+              - AdminUserPool
+              - Arn
             Identity:
               Header: Authorization
         AddDefaultAuthorizerToCorsPreflight: false
       EndpointConfiguration: REGIONAL
       Cors:
-        AllowMethods: "'GET,POST,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization'"
-        AllowOrigin: "'*'"
-
-  # API Key for public website
+        AllowMethods: '''GET,POST,OPTIONS'''
+        AllowHeaders: '''Content-Type,Authorization'''
+        AllowOrigin: '''*'''
   ApiKey:
     Type: AWS::ApiGateway::ApiKey
     DependsOn: ApiGatewayApiProdStage
@@ -68,16 +64,17 @@ Resources:
       Description: API Key for public website access
       Enabled: true
       StageKeys:
-        - RestApiId: !Ref ApiGatewayApi
-          StageName: Prod
-
+      - RestApiId:
+          Ref: ApiGatewayApi
+        StageName: Prod
   UsagePlan:
     Type: AWS::ApiGateway::UsagePlan
     DependsOn: ApiGatewayApiProdStage
     Properties:
       ApiStages:
-        - ApiId: !Ref ApiGatewayApi
-          Stage: Prod
+      - ApiId:
+          Ref: ApiGatewayApi
+        Stage: Prod
       Description: Usage plan for website API key
       Quota:
         Limit: 5000
@@ -85,116 +82,126 @@ Resources:
       Throttle:
         BurstLimit: 100
         RateLimit: 50
-
   UsagePlanKey:
     Type: AWS::ApiGateway::UsagePlanKey
     Properties:
-      KeyId: !Ref ApiKey
+      KeyId:
+        Ref: ApiKey
       KeyType: API_KEY
-      UsagePlanId: !Ref UsagePlan
-
-  # Storage Resources
+      UsagePlanId:
+        Ref: UsagePlan
   MediaBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref BucketName
+      BucketName:
+        Ref: BucketName
       CorsConfiguration:
         CorsRules:
-          - AllowedHeaders: ['*']
-            AllowedMethods: [GET, PUT, POST]
-            AllowedOrigins: ['*']
-            MaxAge: 3000
-
+        - AllowedHeaders:
+          - '*'
+          AllowedMethods:
+          - GET
+          - PUT
+          - POST
+          AllowedOrigins:
+          - '*'
+          MaxAge: 3000
   CategoryTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: Categories
       AttributeDefinitions:
-        - AttributeName: categoryId
-          AttributeType: S
+      - AttributeName: categoryId
+        AttributeType: S
       KeySchema:
-        - AttributeName: categoryId
-          KeyType: HASH
+      - AttributeName: categoryId
+        KeyType: HASH
       BillingMode: PAY_PER_REQUEST
-
   TemplateTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: Templates
       AttributeDefinitions:
-        - AttributeName: categoryId
-          AttributeType: S
+      - AttributeName: categoryId
+        AttributeType: S
       KeySchema:
-        - AttributeName: categoryId
-          KeyType: HASH
+      - AttributeName: categoryId
+        KeyType: HASH
       BillingMode: PAY_PER_REQUEST
-
   MediaMetadataTable:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: MediaMetadata
       AttributeDefinitions:
-        - AttributeName: mediaId
-          AttributeType: S
-        - AttributeName: categoryId
-          AttributeType: S
+      - AttributeName: mediaId
+        AttributeType: S
+      - AttributeName: categoryId
+        AttributeType: S
       KeySchema:
-        - AttributeName: mediaId
-          KeyType: HASH
-        - AttributeName: categoryId
-          KeyType: RANGE
+      - AttributeName: mediaId
+        KeyType: HASH
+      - AttributeName: categoryId
+        KeyType: RANGE
       BillingMode: PAY_PER_REQUEST
       GlobalSecondaryIndexes:
-        - IndexName: CategoryIndex
-          KeySchema:
-            - AttributeName: categoryId
-              KeyType: HASH
-          Projection:
-            ProjectionType: ALL
-
-  # Admin Functions (Protected by Cognito)
+      - IndexName: CategoryIndex
+        KeySchema:
+        - AttributeName: categoryId
+          KeyType: HASH
+        Projection:
+          ProjectionType: ALL
   GetCategoriesFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/categories/get-categories.handler
       Runtime: nodejs20.x
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref CategoryTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: CategoryTable
       Environment:
         Variables:
-          CATEGORY_TABLE: !Ref CategoryTable
+          CATEGORY_TABLE:
+            Ref: CategoryTable
       Events:
         Api:
           Type: Api
           Properties:
             Path: /admin/categories
             Method: GET
-            RestApiId: !Ref ApiGatewayApi
+            RestApiId:
+              Ref: ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
-
+      CodeUri: GetCategoriesFunction
+    Metadata:
+      SamResourceId: GetCategoriesFunction
   GetTemplateFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/templates/get-template.handler
       Runtime: nodejs20.x
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref TemplateTable
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: TemplateTable
       Environment:
         Variables:
-          TEMPLATE_TABLE: !Ref TemplateTable
+          TEMPLATE_TABLE:
+            Ref: TemplateTable
       Events:
         Api:
           Type: Api
           Properties:
             Path: /admin/templates/{categoryId}
             Method: GET
-            RestApiId: !Ref ApiGatewayApi
+            RestApiId:
+              Ref: ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
-
+      CodeUri: GetTemplateFunction
+    Metadata:
+      SamResourceId: GetTemplateFunction
   UploadMediaFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -202,62 +209,80 @@ Resources:
       Runtime: nodejs20.x
       Timeout: 30
       Policies:
-        - S3CrudPolicy:
-            BucketName: !Ref BucketName
-        - DynamoDBCrudPolicy:
-            TableName: !Ref MediaMetadataTable
+      - S3CrudPolicy:
+          BucketName:
+            Ref: BucketName
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: MediaMetadataTable
       Environment:
         Variables:
-          BUCKET_NAME: !Ref BucketName
-          METADATA_TABLE: !Ref MediaMetadataTable
+          BUCKET_NAME:
+            Ref: BucketName
+          METADATA_TABLE:
+            Ref: MediaMetadataTable
       Events:
         Api:
           Type: Api
           Properties:
             Path: /admin/media
             Method: POST
-            RestApiId: !Ref ApiGatewayApi
+            RestApiId:
+              Ref: ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
-
-  # Public Function (Protected by API Key)
+      CodeUri: UploadMediaFunction
+    Metadata:
+      SamResourceId: UploadMediaFunction
   GetMediaByCategoryFunction:
     Type: AWS::Serverless::Function
     Properties:
       Handler: src/handlers/media/get-media-by-category.handler
       Runtime: nodejs20.x
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref MediaMetadataTable
-        - S3ReadPolicy:
-            BucketName: !Ref BucketName
+      - DynamoDBReadPolicy:
+          TableName:
+            Ref: MediaMetadataTable
+      - S3ReadPolicy:
+          BucketName:
+            Ref: BucketName
       Environment:
         Variables:
-          BUCKET_NAME: !Ref BucketName
-          METADATA_TABLE: !Ref MediaMetadataTable
+          BUCKET_NAME:
+            Ref: BucketName
+          METADATA_TABLE:
+            Ref: MediaMetadataTable
       Events:
         Api:
           Type: Api
           Properties:
             Path: /public/media/{categoryId}
             Method: GET
-            RestApiId: !Ref ApiGatewayApi
+            RestApiId:
+              Ref: ApiGatewayApi
             Auth:
               ApiKeyRequired: true
-
+      CodeUri: GetMediaByCategoryFunction
+    Metadata:
+      SamResourceId: GetMediaByCategoryFunction
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
-    Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
+    Value:
+      Fn::Sub: https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/
   WebsiteApiKey:
     Description: API Key for public website access
-    Value: !Ref ApiKey
+    Value:
+      Ref: ApiKey
   UserPoolId:
     Description: Cognito User Pool ID
-    Value: !Ref AdminUserPool
+    Value:
+      Ref: AdminUserPool
   UserPoolClientId:
     Description: Cognito User Pool Client ID
-    Value: !Ref AdminUserPoolClient
+    Value:
+      Ref: AdminUserPoolClient
   BucketName:
     Description: S3 Bucket Name
-    Value: !Ref MediaBucket
+    Value:
+      Ref: MediaBucket

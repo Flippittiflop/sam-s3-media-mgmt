@@ -19,7 +19,7 @@ resolve_s3 = true
 s3_prefix = "sam-s3-media-mgmt"
 region = "eu-central-1"
 profile = "personal-dev-admin-access"
-parameter_overrides = "BucketName=\"hazel-buchan-website-media-content\" AdminUserEmail=\"jonathan.buchan@jdtbuchan.com\""
+parameter_overrides = "BucketName=\"hazel-buchan-website-media-content\" AdminUserEmail=\"jdtbuchan@jdtbuchan.com\""
 image_repositories = []
 
 [default.package.parameters]
