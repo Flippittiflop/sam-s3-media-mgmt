@@ -2,11 +2,13 @@
   "name": "website-media-management",
   "version": "1.0.0",
   "description": "SAM application for managing website media content",
+  "type": "module",
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.410.0",
     "@aws-sdk/client-s3": "^3.410.0",
     "@aws-sdk/lib-dynamodb": "^3.410.0",
-    "@aws-sdk/s3-request-presigner": "^3.410.0"
+    "@aws-sdk/s3-request-presigner": "^3.410.0",
+    "aws-jwt-verify": "^4.0.0"
   },
   "devDependencies": {
     "aws-sdk-client-mock": "^3.0.0",

@@ -25,6 +25,14 @@ Resources:
           RequireNumbers: true
           RequireSymbols: true
           RequireUppercase: true
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admin
+      UserPoolId:
+        Ref: AdminUserPool
+      Description: Administrator group with full access
+      Precedence: 0
   AdminUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
@@ -33,6 +41,7 @@ Resources:
       ClientName: MediaManagementAdminClient
       GenerateSecret: false
       ExplicitAuthFlows:
+      - ALLOW_USER_SRP_AUTH
       - ALLOW_USER_PASSWORD_AUTH
       - ALLOW_REFRESH_TOKEN_AUTH
       PreventUserExistenceErrors: ENABLED
@@ -53,9 +62,11 @@ Resources:
         AddDefaultAuthorizerToCorsPreflight: false
       EndpointConfiguration: REGIONAL
       Cors:
-        AllowMethods: '''GET,POST,OPTIONS'''
-        AllowHeaders: '''Content-Type,Authorization'''
+        AllowMethods: '''GET,POST,PUT,DELETE,OPTIONS'''
+        AllowHeaders: '''Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'''
         AllowOrigin: '''*'''
+        MaxAge: '''3600'''
+        AllowCredentials: '''false'''
   ApiKey:
     Type: AWS::ApiGateway::ApiKey
     DependsOn: ApiGatewayApiProdStage
@@ -176,6 +187,34 @@ Resources:
       CodeUri: GetCategoriesFunction
     Metadata:
       SamResourceId: GetCategoriesFunction
+  CreateCategoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/categories/create-category.handler
+      Runtime: nodejs20.x
+      Policies:
+      - DynamoDBCrudPolicy:
+          TableName:
+            Ref: CategoryTable
+      Environment:
+        Variables:
+          CATEGORY_TABLE:
+            Ref: CategoryTable
+          USER_POOL_ID:
+            Ref: AdminUserPool
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /admin/categories
+            Method: POST
+            RestApiId:
+              Ref: ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+      CodeUri: CreateCategoryFunction
+    Metadata:
+      SamResourceId: CreateCategoryFunction
   GetTemplateFunction:
     Type: AWS::Serverless::Function
     Properties:

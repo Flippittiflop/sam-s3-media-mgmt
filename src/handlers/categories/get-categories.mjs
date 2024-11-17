@@ -17,7 +17,10 @@ export const handler = async (event) => {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        "Access-Control-Allow-Credentials": true
       },
       body: JSON.stringify(data.Items)
     };
@@ -25,6 +28,13 @@ export const handler = async (event) => {
     console.error('Error:', error);
     return {
       statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With',
+        'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS',
+        "Access-Control-Allow-Credentials": true
+      },
       body: JSON.stringify({ error: 'Failed to fetch categories' })
     };
   }

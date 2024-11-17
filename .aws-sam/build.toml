@@ -5,8 +5,8 @@ codeuri = "/Users/jonathanbuchan/WebstormProjects/sam-s3-media-mgmt"
 runtime = "nodejs20.x"
 architecture = "x86_64"
 handler = "src/handlers/categories/get-categories.handler"
-manifest_hash = "25a959d560076dc0bcaa007b41abae1d"
+manifest_hash = "8188e94e9752ae3a8b0a70117e7e18e4"
 packagetype = "Zip"
-functions = ["GetCategoriesFunction", "GetTemplateFunction", "UploadMediaFunction", "GetMediaByCategoryFunction"]
+functions = ["GetCategoriesFunction", "CreateCategoryFunction", "GetTemplateFunction", "UploadMediaFunction", "GetMediaByCategoryFunction"]
 
 [layer_build_definitions]

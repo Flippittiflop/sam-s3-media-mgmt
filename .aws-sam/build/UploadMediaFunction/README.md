@@ -158,3 +158,11 @@ sam delete --stack-name sam-s3-media-mgmt
 For an introduction to the AWS SAM specification, the AWS SAM CLI, and serverless application concepts, see the [AWS SAM Developer Guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html).
 
 Next, you can use the AWS Serverless Application Repository to deploy ready-to-use apps that go beyond Hello World samples and learn how authors developed their applications. For more information, see the [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/) and the [AWS Serverless Application Repository Developer Guide](https://docs.aws.amazon.com/serverlessrepo/latest/devguide/what-is-serverlessrepo.html).
+
+
+# Build Deploy
+```shell
+aws sso login --profile personal-dev-admin-access 
+sam build  
+sam deploy --guided --profile personal-dev-admin-access
+```

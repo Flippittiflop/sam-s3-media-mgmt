@@ -12,7 +12,6 @@ Parameters:
     Default: admin@example.com
 
 Resources:
-  # Cognito Resources for Admin Authentication
   AdminUserPool:
     Type: AWS::Cognito::UserPool
     Properties:
@@ -29,6 +28,14 @@ Resources:
           RequireSymbols: true
           RequireUppercase: true
 
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Admin
+      UserPoolId: !Ref AdminUserPool
+      Description: Administrator group with full access
+      Precedence: 0
+
   AdminUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
@@ -36,11 +43,11 @@ Resources:
       ClientName: MediaManagementAdminClient
       GenerateSecret: false
       ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
       PreventUserExistenceErrors: ENABLED
 
-  # API Gateway Resources
   ApiGatewayApi:
     Type: AWS::Serverless::Api
     Properties:
@@ -55,11 +62,12 @@ Resources:
         AddDefaultAuthorizerToCorsPreflight: false
       EndpointConfiguration: REGIONAL
       Cors:
-        AllowMethods: "'GET,POST,OPTIONS'"
-        AllowHeaders: "'Content-Type,Authorization'"
+        AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With'"
         AllowOrigin: "'*'"
+        MaxAge: "'3600'"
+        AllowCredentials: "'false'"
 
-  # API Key for public website
   ApiKey:
     Type: AWS::ApiGateway::ApiKey
     DependsOn: ApiGatewayApiProdStage
@@ -93,7 +101,6 @@ Resources:
       KeyType: API_KEY
       UsagePlanId: !Ref UsagePlan
 
-  # Storage Resources
   MediaBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -152,7 +159,6 @@ Resources:
           Projection:
             ProjectionType: ALL
 
-  # Admin Functions (Protected by Cognito)
   GetCategoriesFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -170,6 +176,28 @@ Resources:
           Properties:
             Path: /admin/categories
             Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  CreateCategoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/categories/create-category.handler
+      Runtime: nodejs20.x
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref CategoryTable
+      Environment:
+        Variables:
+          CATEGORY_TABLE: !Ref CategoryTable
+          USER_POOL_ID: !Ref AdminUserPool
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /admin/categories
+            Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
@@ -220,7 +248,6 @@ Resources:
             Auth:
               Authorizer: CognitoAuthorizer
 
-  # Public Function (Protected by API Key)
   GetMediaByCategoryFunction:
     Type: AWS::Serverless::Function
     Properties:

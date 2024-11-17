@@ -10,7 +10,23 @@ const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
 const bucketName = process.env.BUCKET_NAME;
 const tableName = process.env.METADATA_TABLE;
 
+const corsHeaders = {
+  'Content-Type': 'application/json',
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token,X-Requested-With',
+  'Access-Control-Allow-Methods': 'GET,POST,PUT,DELETE,OPTIONS'
+};
+
 export const handler = async (event) => {
+  // Handle OPTIONS request for CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: ''
+    };
+  }
+
   try {
     const { image, metadata, categoryId } = JSON.parse(event.body);
     const mediaId = randomUUID();
@@ -42,10 +58,7 @@ export const handler = async (event) => {
 
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
+      headers: corsHeaders,
       body: JSON.stringify({
         mediaId,
         message: 'Media uploaded successfully'
@@ -55,6 +68,7 @@ export const handler = async (event) => {
     console.error('Error:', error);
     return {
       statusCode: 500,
+      headers: corsHeaders,
       body: JSON.stringify({ error: 'Failed to upload media' })
     };
   }
