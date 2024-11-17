@@ -1,12 +1,11 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { randomUUID } from 'crypto';
 
 const client = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(client);
-const categoryTable = process.env.CATEGORY_TABLE;
-const templateTable = process.env.TEMPLATE_TABLE;
+const tableName = process.env.TEMPLATE_TABLE;
 const userPoolId = process.env.USER_POOL_ID;
 
 const corsHeaders = {
@@ -44,48 +43,31 @@ export const handler = async (event) => {
       };
     }
 
-    const { name, description, templateId } = JSON.parse(event.body);
-
-    // Verify template exists
-    const templateParams = {
-      TableName: templateTable,
-      Key: { templateId }
-    };
-
-    const templateResult = await ddbDocClient.send(new GetCommand(templateParams));
-    
-    if (!templateResult.Item) {
-      return {
-        statusCode: 404,
-        headers: corsHeaders,
-        body: JSON.stringify({ error: 'Template not found' })
-      };
-    }
-
-    const categoryId = randomUUID();
+    const { templateId, name, description, fields } = JSON.parse(event.body);
     
     const params = {
-      TableName: categoryTable,
+      TableName: tableName,
       Item: {
-        categoryId,
-        templateId,
+        templateId: templateId || randomUUID(),
         name,
         description,
-        createdAt: new Date().toISOString()
+        fields,
+        updatedAt: new Date().toISOString()
       }
     };
+
+    if (!templateId) {
+      params.Item.createdAt = params.Item.updatedAt;
+    }
 
     await ddbDocClient.send(new PutCommand(params));
     
     return {
-      statusCode: 201,
+      statusCode: templateId ? 200 : 201,
       headers: corsHeaders,
       body: JSON.stringify({
-        categoryId,
-        templateId,
-        name,
-        description,
-        message: 'Category created successfully'
+        ...params.Item,
+        message: templateId ? 'Template updated successfully' : 'Template created successfully'
       })
     };
   } catch (error) {
@@ -93,7 +75,7 @@ export const handler = async (event) => {
     return {
       statusCode: error.statusCode || 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: error.message || 'Failed to create category' })
+      body: JSON.stringify({ error: error.message || 'Failed to upsert template' })
     };
   }
 };

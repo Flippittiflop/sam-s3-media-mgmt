@@ -1,2 +1,5 @@
 node_modules
 .DS_Store
+.aws-sam/build
+.aws-sam/build/*
+

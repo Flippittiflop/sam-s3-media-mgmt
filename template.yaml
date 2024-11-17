@@ -36,6 +36,14 @@ Resources:
       Description: Administrator group with full access
       Precedence: 0
 
+  UsersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    Properties:
+      GroupName: Users
+      UserPoolId: !Ref AdminUserPool
+      Description: Regular users with limited access
+      Precedence: 1
+
   AdminUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
@@ -119,9 +127,18 @@ Resources:
       AttributeDefinitions:
         - AttributeName: categoryId
           AttributeType: S
+        - AttributeName: templateId
+          AttributeType: S
       KeySchema:
         - AttributeName: categoryId
           KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: TemplateIndex
+          KeySchema:
+            - AttributeName: templateId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
       BillingMode: PAY_PER_REQUEST
 
   TemplateTable:
@@ -129,10 +146,10 @@ Resources:
     Properties:
       TableName: Templates
       AttributeDefinitions:
-        - AttributeName: categoryId
+        - AttributeName: templateId
           AttributeType: S
       KeySchema:
-        - AttributeName: categoryId
+        - AttributeName: templateId
           KeyType: HASH
       BillingMode: PAY_PER_REQUEST
 
@@ -188,9 +205,12 @@ Resources:
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref CategoryTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref TemplateTable
       Environment:
         Variables:
           CATEGORY_TABLE: !Ref CategoryTable
+          TEMPLATE_TABLE: !Ref TemplateTable
           USER_POOL_ID: !Ref AdminUserPool
       Events:
         Api:
@@ -217,8 +237,30 @@ Resources:
         Api:
           Type: Api
           Properties:
-            Path: /admin/templates/{categoryId}
+            Path: /admin/templates/{templateId}
             Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  UpsertTemplateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/templates/upsert-template.handler
+      Runtime: nodejs20.x
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref TemplateTable
+      Environment:
+        Variables:
+          TEMPLATE_TABLE: !Ref TemplateTable
+          USER_POOL_ID: !Ref AdminUserPool
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /admin/templates
+            Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
