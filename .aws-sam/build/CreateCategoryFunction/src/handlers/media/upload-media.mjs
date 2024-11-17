@@ -1,6 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { randomUUID } from 'crypto';
 
 const s3Client = new S3Client({});
@@ -9,6 +10,7 @@ const ddbDocClient = DynamoDBDocumentClient.from(ddbClient);
 
 const bucketName = process.env.BUCKET_NAME;
 const tableName = process.env.METADATA_TABLE;
+const userPoolId = process.env.USER_POOL_ID;
 
 const corsHeaders = {
   'Content-Type': 'application/json',
@@ -18,7 +20,6 @@ const corsHeaders = {
 };
 
 export const handler = async (event) => {
-  // Handle OPTIONS request for CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -28,10 +29,30 @@ export const handler = async (event) => {
   }
 
   try {
+    const token = event.headers.Authorization.split(' ')[1];
+    
+    const verifier = CognitoJwtVerifier.create({
+      userPoolId: userPoolId,
+      tokenUse: "access",
+      clientId: null
+    });
+    
+    const claims = await verifier.verify(token);
+    
+    // Allow both Admin and Users groups to upload media
+    if (!claims['cognito:groups'] || 
+        (!claims['cognito:groups'].includes('Admin') && 
+         !claims['cognito:groups'].includes('Users'))) {
+      return {
+        statusCode: 403,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Access denied. Must be a member of Admin or Users group.' })
+      };
+    }
+
     const { image, metadata, categoryId } = JSON.parse(event.body);
     const mediaId = randomUUID();
     
-    // Upload image to S3
     const imageBuffer = Buffer.from(image.split(',')[1], 'base64');
     const key = `gallery-images/${categoryId}/${mediaId}`;
     
@@ -42,7 +63,6 @@ export const handler = async (event) => {
       ContentType: 'image/jpeg'
     }));
 
-    // Store metadata in DynamoDB
     const metadataParams = {
       TableName: tableName,
       Item: {
@@ -50,14 +70,15 @@ export const handler = async (event) => {
         categoryId,
         s3Key: key,
         ...metadata,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        createdBy: claims.sub
       }
     };
 
     await ddbDocClient.send(new PutCommand(metadataParams));
 
     return {
-      statusCode: 200,
+      statusCode: 201,
       headers: corsHeaders,
       body: JSON.stringify({
         mediaId,
@@ -67,9 +88,9 @@ export const handler = async (event) => {
   } catch (error) {
     console.error('Error:', error);
     return {
-      statusCode: 500,
+      statusCode: error.statusCode || 500,
       headers: corsHeaders,
-      body: JSON.stringify({ error: 'Failed to upload media' })
+      body: JSON.stringify({ error: error.message || 'Failed to upload media' })
     };
   }
 };

@@ -1,11 +1,12 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
-import { DynamoDBDocumentClient, PutCommand } from '@aws-sdk/lib-dynamodb';
+import { DynamoDBDocumentClient, PutCommand, GetCommand } from '@aws-sdk/lib-dynamodb';
 import { CognitoJwtVerifier } from "aws-jwt-verify";
 import { randomUUID } from 'crypto';
 
 const client = new DynamoDBClient({});
 const ddbDocClient = DynamoDBDocumentClient.from(client);
-const tableName = process.env.CATEGORY_TABLE;
+const categoryTable = process.env.CATEGORY_TABLE;
+const templateTable = process.env.TEMPLATE_TABLE;
 const userPoolId = process.env.USER_POOL_ID;
 
 const corsHeaders = {
@@ -16,7 +17,6 @@ const corsHeaders = {
 };
 
 export const handler = async (event) => {
-  // Handle OPTIONS request for CORS preflight
   if (event.httpMethod === 'OPTIONS') {
     return {
       statusCode: 200,
@@ -26,19 +26,16 @@ export const handler = async (event) => {
   }
 
   try {
-    // Parse the JWT token from the Authorization header
     const token = event.headers.Authorization.split(' ')[1];
     
-    // Verify the JWT and get the claims
     const verifier = CognitoJwtVerifier.create({
       userPoolId: userPoolId,
       tokenUse: "access",
-      clientId: null // Validate any client
+      clientId: null
     });
     
     const claims = await verifier.verify(token);
     
-    // Check if user is in Admin group
     if (!claims['cognito:groups'] || !claims['cognito:groups'].includes('Admin')) {
       return {
         statusCode: 403,
@@ -47,13 +44,31 @@ export const handler = async (event) => {
       };
     }
 
-    const { name, description } = JSON.parse(event.body);
+    const { name, description, templateId } = JSON.parse(event.body);
+
+    // Verify template exists
+    const templateParams = {
+      TableName: templateTable,
+      Key: { templateId }
+    };
+
+    const templateResult = await ddbDocClient.send(new GetCommand(templateParams));
+    
+    if (!templateResult.Item) {
+      return {
+        statusCode: 404,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'Template not found' })
+      };
+    }
+
     const categoryId = randomUUID();
     
     const params = {
-      TableName: tableName,
+      TableName: categoryTable,
       Item: {
         categoryId,
+        templateId,
         name,
         description,
         createdAt: new Date().toISOString()
@@ -67,6 +82,7 @@ export const handler = async (event) => {
       headers: corsHeaders,
       body: JSON.stringify({
         categoryId,
+        templateId,
         name,
         description,
         message: 'Category created successfully'

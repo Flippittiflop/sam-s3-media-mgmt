@@ -28,22 +28,6 @@ Resources:
           RequireSymbols: true
           RequireUppercase: true
 
-  AdminGroup:
-    Type: AWS::Cognito::UserPoolGroup
-    Properties:
-      GroupName: Admin
-      UserPoolId: !Ref AdminUserPool
-      Description: Administrator group with full access
-      Precedence: 0
-
-  UsersGroup:
-    Type: AWS::Cognito::UserPoolGroup
-    Properties:
-      GroupName: Users
-      UserPoolId: !Ref AdminUserPool
-      Description: Regular users with limited access
-      Precedence: 1
-
   AdminUserPoolClient:
     Type: AWS::Cognito::UserPoolClient
     Properties:
@@ -55,6 +39,24 @@ Resources:
         - ALLOW_USER_PASSWORD_AUTH
         - ALLOW_REFRESH_TOKEN_AUTH
       PreventUserExistenceErrors: ENABLED
+
+  AdminGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DependsOn: AdminUserPool
+    Properties:
+      GroupName: Admin
+      UserPoolId: !Ref AdminUserPool
+      Description: Administrator group with full access
+      Precedence: 0
+
+  UsersGroup:
+    Type: AWS::Cognito::UserPoolGroup
+    DependsOn: AdminUserPool
+    Properties:
+      GroupName: Users
+      UserPoolId: !Ref AdminUserPool
+      Description: Regular users with limited access
+      Precedence: 1
 
   ApiGatewayApi:
     Type: AWS::Serverless::Api
@@ -75,39 +77,6 @@ Resources:
         AllowOrigin: "'*'"
         MaxAge: "'3600'"
         AllowCredentials: "'false'"
-
-  ApiKey:
-    Type: AWS::ApiGateway::ApiKey
-    DependsOn: ApiGatewayApiProdStage
-    Properties:
-      Name: WebsiteApiKey
-      Description: API Key for public website access
-      Enabled: true
-      StageKeys:
-        - RestApiId: !Ref ApiGatewayApi
-          StageName: Prod
-
-  UsagePlan:
-    Type: AWS::ApiGateway::UsagePlan
-    DependsOn: ApiGatewayApiProdStage
-    Properties:
-      ApiStages:
-        - ApiId: !Ref ApiGatewayApi
-          Stage: Prod
-      Description: Usage plan for website API key
-      Quota:
-        Limit: 5000
-        Period: MONTH
-      Throttle:
-        BurstLimit: 100
-        RateLimit: 50
-
-  UsagePlanKey:
-    Type: AWS::ApiGateway::UsagePlanKey
-    Properties:
-      KeyId: !Ref ApiKey
-      KeyType: API_KEY
-      UsagePlanId: !Ref UsagePlan
 
   MediaBucket:
     Type: AWS::S3::Bucket
@@ -191,7 +160,7 @@ Resources:
         Api:
           Type: Api
           Properties:
-            Path: /admin/categories
+            Path: /categories
             Method: GET
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -216,7 +185,7 @@ Resources:
         Api:
           Type: Api
           Properties:
-            Path: /admin/categories
+            Path: /categories
             Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -237,7 +206,29 @@ Resources:
         Api:
           Type: Api
           Properties:
-            Path: /admin/templates/{templateId}
+            Path: /templates/{templateId}
+            Method: GET
+            RestApiId: !Ref ApiGatewayApi
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  GetTemplatesFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: src/handlers/templates/get-templates.handler
+      Runtime: nodejs20.x
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref TemplateTable
+      Environment:
+        Variables:
+          TEMPLATE_TABLE: !Ref TemplateTable
+          USER_POOL_ID: !Ref AdminUserPool
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /templates
             Method: GET
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -259,7 +250,7 @@ Resources:
         Api:
           Type: Api
           Properties:
-            Path: /admin/templates
+            Path: /templates
             Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
@@ -280,47 +271,21 @@ Resources:
         Variables:
           BUCKET_NAME: !Ref BucketName
           METADATA_TABLE: !Ref MediaMetadataTable
+          USER_POOL_ID: !Ref AdminUserPool
       Events:
         Api:
           Type: Api
           Properties:
-            Path: /admin/media
+            Path: /media
             Method: POST
             RestApiId: !Ref ApiGatewayApi
             Auth:
               Authorizer: CognitoAuthorizer
 
-  GetMediaByCategoryFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      Handler: src/handlers/media/get-media-by-category.handler
-      Runtime: nodejs20.x
-      Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref MediaMetadataTable
-        - S3ReadPolicy:
-            BucketName: !Ref BucketName
-      Environment:
-        Variables:
-          BUCKET_NAME: !Ref BucketName
-          METADATA_TABLE: !Ref MediaMetadataTable
-      Events:
-        Api:
-          Type: Api
-          Properties:
-            Path: /public/media/{categoryId}
-            Method: GET
-            RestApiId: !Ref ApiGatewayApi
-            Auth:
-              ApiKeyRequired: true
-
 Outputs:
   ApiEndpoint:
     Description: API Gateway endpoint URL
     Value: !Sub "https://${ApiGatewayApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/"
-  WebsiteApiKey:
-    Description: API Key for public website access
-    Value: !Ref ApiKey
   UserPoolId:
     Description: Cognito User Pool ID
     Value: !Ref AdminUserPool
